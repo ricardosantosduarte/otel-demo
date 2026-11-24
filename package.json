@@ -1,0 +1,29 @@
+{
+  "name": "otel-tryout",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "services/*",
+    "frontend"
+  ],
+  "scripts": {
+    "stack:up": "docker compose up -d",
+    "stack:down": "docker compose down",
+    "stack:logs": "docker compose logs -f",
+    "auth": "npm run dev -w authentication-service",
+    "account": "npm run dev -w account-service",
+    "balance": "npm run dev -w balance-service",
+    "transaction": "npm run dev -w transaction-service",
+    "fraud": "npm run dev -w fraud-service",
+    "notification": "npm run dev -w notification-service",
+    "loadgen": "npm run dev -w load-generator",
+    "frontend": "npm run dev -w frontend",
+    "services": "concurrently -n auth,account,balance,txn,fraud,notify,loadgen -c green,yellow,cyan,magenta,red,blue,gray \"npm run auth\" \"npm run account\" \"npm run balance\" \"npm run transaction\" \"npm run fraud\" \"npm run notification\" \"npm run loadgen\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
