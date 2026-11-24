@@ -98,5 +98,29 @@ app.post("/debit", requireAuth({ scope: "balance:write" }), async (req, res) => 
   res.json({ accountId, balance, currency: "USD" });
 });
 
+app.post("/credit", requireAuth({ scope: "balance:write" }), async (req, res) => {
+  await randomLatency();
+
+  if (failRequested(req, "x-fail-balance")) {
+    log.error("credit failed (simulated)");
+    return res.status(500).json({ error: "balance ledger unavailable" });
+  }
+
+  const resolved = await resolveAccount(req);
+  if (!resolved.ok) {
+    log.warn("credit failed: account resolution error");
+    return res.status(resolved.status).json({ error: "could not resolve account" });
+  }
+
+  const { accountId } = resolved.account;
+  const amount = Number(req.body?.amount ?? 0);
+  const balance = Math.round((getBalance(accountId) + amount) * 100) / 100;
+  balances.set(accountId, balance);
+  balanceHistogram.record(balance);
+
+  log.info({ accountId, amount, balance }, "account credited");
+  res.json({ accountId, balance, currency: "USD" });
+});
+
 const PORT = 4003;
 app.listen(PORT, () => log.info(`balance-service listening on :${PORT}`));

@@ -13,9 +13,10 @@ const flowCounter = meter.createCounter("loadgen_flows_total", {
 const AUTH = process.env.AUTH_URL ?? "http://localhost:4001";
 const BALANCE = process.env.BALANCE_URL ?? "http://localhost:4003";
 const TRANSACTION = process.env.TRANSACTION_URL ?? "http://localhost:4004";
+const PAYMENT = process.env.PAYMENT_URL ?? "http://localhost:4008";
 const CREDENTIALS = { username: "ricardo", password: "password123" };
 
-type FaultKey = "login" | "account" | "balance" | "transaction" | "fraud" | "notification";
+type FaultKey = "login" | "account" | "balance" | "transaction" | "fraud" | "notification" | "payment";
 
 interface State {
   running: boolean;
@@ -26,7 +27,7 @@ interface State {
 const state: State = {
   running: false,
   intervalMs: 1500,
-  faults: { login: false, account: false, balance: false, transaction: false, fraud: false, notification: false },
+  faults: { login: false, account: false, balance: false, transaction: false, fraud: false, notification: false, payment: false },
 };
 
 let token: string | null = null;
@@ -41,6 +42,7 @@ function faultHeaders(): Record<string, string> {
   if (f.transaction) h["x-fail-transaction"] = "true";
   if (f.fraud) h["x-fail-fraud"] = "true";
   if (f.notification) h["x-fail-notification"] = "true";
+  if (f.payment) h["x-fail-payment"] = "true";
   return h;
 }
 
@@ -77,7 +79,7 @@ async function checkBalance(): Promise<void> {
 
 async function transfer(): Promise<void> {
   if (!(await ensureToken())) return;
-  const amount = 50 + Math.floor(Math.random() * 200);
+  const amount = Math.round((20 + Math.random() * 480) * 100) / 100;
   const res = await fetch(`${TRANSACTION}/transfer`, {
     method: "POST",
     headers: { "Content-Type": "application/json", authorization: `Bearer ${token}`, ...faultHeaders() },
@@ -87,11 +89,24 @@ async function transfer(): Promise<void> {
   flowCounter.add(1, { flow: "transfer", result: res.ok ? "ok" : "error" });
 }
 
+async function receivePayment(): Promise<void> {
+  if (!(await ensureToken())) return;
+  const amount = Math.round((10 + Math.random() * 490) * 100) / 100;
+  const res = await fetch(`${PAYMENT}/receive`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", authorization: `Bearer ${token}`, ...faultHeaders() },
+    body: JSON.stringify({ amount }),
+  });
+  if (res.status === 401) token = null;
+  flowCounter.add(1, { flow: "payment", result: res.ok ? "ok" : "error" });
+}
+
 async function runRandomFlow(): Promise<void> {
   const r = Math.random();
-  if (r < 0.2) await login();
-  else if (r < 0.6) await checkBalance();
-  else await transfer();
+  if (r < 0.15) await login();
+  else if (r < 0.45) await checkBalance();
+  else if (r < 0.75) await transfer();
+  else await receivePayment();
 }
 
 async function tick(): Promise<void> {

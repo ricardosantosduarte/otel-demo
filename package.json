@@ -17,9 +17,10 @@
     "transaction": "npm run dev -w transaction-service",
     "fraud": "npm run dev -w fraud-service",
     "notification": "npm run dev -w notification-service",
+    "payment": "npm run dev -w payment-service",
     "loadgen": "npm run dev -w load-generator",
     "frontend": "npm run dev -w frontend",
-    "services": "concurrently -n auth,account,balance,txn,fraud,notify,loadgen -c green,yellow,cyan,magenta,red,blue,gray \"npm run auth\" \"npm run account\" \"npm run balance\" \"npm run transaction\" \"npm run fraud\" \"npm run notification\" \"npm run loadgen\""
+    "services": "concurrently -n auth,account,balance,txn,fraud,notify,payment,loadgen -c green,yellow,cyan,magenta,red,blue,white,gray \"npm run auth\" \"npm run account\" \"npm run balance\" \"npm run transaction\" \"npm run fraud\" \"npm run notification\" \"npm run payment\" \"npm run loadgen\""
   },
   "devDependencies": {
     "concurrently": "^9.1.0",
