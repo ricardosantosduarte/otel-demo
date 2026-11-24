@@ -11,7 +11,7 @@ const COLLECTOR_URL = "http://localhost:4318/v1/traces";
 // The backend services the browser calls. The fetch instrumentation only adds
 // the W3C `traceparent` header to cross-origin requests on this allow-list, so
 // the browser span and the server spans join into one trace.
-const BACKENDS = [/http:\/\/localhost:400[1-6]/];
+const BACKENDS = [/http:\/\/localhost:400[1-8]/];
 
 const provider = new WebTracerProvider({
   resource: new Resource({ [ATTR_SERVICE_NAME]: "frontend" }),

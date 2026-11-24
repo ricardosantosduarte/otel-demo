@@ -16,6 +16,7 @@ export const corsOptions: CorsOptions = {
     "x-fail-transaction",
     "x-fail-fraud",
     "x-fail-notification",
+    "x-fail-payment",
   ],
   exposedHeaders: ["traceparent", "tracestate"],
 };

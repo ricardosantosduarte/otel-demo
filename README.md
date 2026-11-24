@@ -15,6 +15,7 @@ into a Grafana LGTM stack.
 | `transaction-service`    | 4004 | Orchestrates a transfer (fraud → balance → notify)    |
 | `fraud-service`          | 4005 | Risk-scores a transfer, approves or denies            |
 | `notification-service`   | 4006 | Sends a receipt after a transfer                      |
+| `payment-service`        | 4008 | Credits the account on an incoming payment            |
 | `load-generator`         | 4007 | Drives the flows continuously; HTTP-controlled        |
 | `frontend`               | 5173 | Browser console with real OTel RUM                    |
 
@@ -32,10 +33,12 @@ flowchart TD
     FE -->|login / refresh| AUTH[authentication-service]
     FE -->|check balance| BAL[balance-service]
     FE -->|transfer| TXN[transaction-service]
+    FE -->|receive payment| PAY[payment-service]
 
     LG -->|login| AUTH
     LG -->|check balance| BAL
     LG -->|transfer| TXN
+    LG -->|receive payment| PAY
 
     BAL -->|resolve account| ACC[account-service]
 
@@ -43,11 +46,14 @@ flowchart TD
     TXN -->|debit funds| BAL
     TXN -->|send receipt| NOTIF[notification-service]
 
+    PAY -->|credit funds| BAL
+
     ACC -. verify .-> AUTH
     BAL -. verify .-> AUTH
     TXN -. verify .-> AUTH
     FRAUD -. verify .-> AUTH
     NOTIF -. verify .-> AUTH
+    PAY -. verify .-> AUTH
 ```
 
 A transfer is the deepest call chain:
@@ -58,24 +64,38 @@ frontend → transaction → fraud
                        → notification
 ```
 
+A payment credits the account the other way:
+
+```
+frontend → payment → balance → account → authentication
+```
+
+Transfers debit and payments credit the same in-memory balance (held by the
+balance service, starting at $5000), with randomized amounts — so the balance
+moves both directions.
+
 ## Observability pipeline
 
-Every service and the browser ship OTLP to a gateway collector (CORS enabled
-so the browser can post directly). The collector forwards to the bundled LGTM
-stack.
+Every service and the browser ship OTLP straight to the collector bundled in the
+`grafana/otel-lgtm` image (CORS is enabled there, so the browser posts directly).
+The collector routes each signal to its backend.
 
 ```mermaid
 flowchart LR
     subgraph app[Instrumented apps]
         FE([frontend])
-        SVCS[6 services]
+        SVCS[8 services]
     end
 
-    FE -->|OTLP/HTTP| COL[otel-collector]
+    subgraph lgtm[grafana/otel-lgtm]
+        COL[OTel Collector]
+        COL --> TEMPO[(Tempo · traces)]
+        COL --> LOKI[(Loki · logs)]
+        COL --> PROM[(Prometheus · metrics)]
+    end
+
+    FE -->|OTLP/HTTP| COL
     SVCS -->|OTLP/HTTP| COL
-    COL --> TEMPO[(Tempo · traces)]
-    COL --> LOKI[(Loki · logs)]
-    COL --> PROM[(Prometheus · metrics)]
     TEMPO --> GRAF{{Grafana}}
     LOKI --> GRAF
     PROM --> GRAF
@@ -157,6 +177,7 @@ a red trace in Tempo.
 | Fail transaction  | `x-fail-transaction`   | transaction                              |
 | Fail fraud        | `x-fail-fraud`         | fraud (and transaction above it)         |
 | Fail notification | `x-fail-notification`  | notification                             |
+| Fail payment      | `x-fail-payment`       | payment (incoming credits)               |
 
 The console has **one** set of outage switches (the "Service outages" card), one
 per service. A switch applies to *both* the manual buttons and the generated
@@ -189,9 +210,12 @@ curl -s -X POST localhost:4007/control -H 'Content-Type: application/json' -d '{
 
 ## Dashboard as code
 
-The dashboard lives at `grafana/dashboard.json`. After editing it, re-push:
+The dashboard lives at `grafana/dashboard.json` and is **provisioned** into the
+LGTM container (mounted via `docker-compose.yml`, with `grafana/provisioning/
+dashboards.yaml` as the provider). Because it's a file, it survives
+`stack:down`/`stack:up` — unlike a dashboard created in the UI, which lives in the
+container's ephemeral database.
 
-```bash
-node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('grafana/dashboard.json','utf8'));fs.writeFileSync('/tmp/dash.json',JSON.stringify({dashboard:d,overwrite:true}))"
-curl -s -X POST http://localhost:3000/api/dashboards/db -H 'Content-Type: application/json' --data @/tmp/dash.json
-```
+Edit `grafana/dashboard.json` and Grafana reloads it within ~10s (no restart, no
+API push). The datasource UIDs (`prometheus`, `loki`, `tempo`) are fixed by the
+image, so the references resolve automatically.

@@ -4,6 +4,7 @@ import { trace, context, SpanStatusCode } from "@opentelemetry/api";
 const AUTH = "http://localhost:4001";
 const BALANCE = "http://localhost:4003";
 const TRANSACTION = "http://localhost:4004";
+const PAYMENT = "http://localhost:4008";
 const LOADGEN = "http://localhost:4007";
 const tracer = trace.getTracer("frontend");
 
@@ -23,6 +24,7 @@ const FAULT_HEADER: Record<string, string> = {
   transaction: "x-fail-transaction",
   fraud: "x-fail-fraud",
   notification: "x-fail-notification",
+  payment: "x-fail-payment",
 };
 
 // Single source of truth for outages: the generator's fault state (polled
@@ -86,6 +88,18 @@ document.getElementById("transferBtn")!.addEventListener("click", () => {
       method: "POST",
       headers: { "Content-Type": "application/json", authorization: `Bearer ${token}`, ...manualFailHeaders() },
       body: JSON.stringify({ amount: 250 }),
+    });
+    render(await res.json());
+  });
+});
+
+document.getElementById("receiveBtn")!.addEventListener("click", () => {
+  runFlow("ui.receive-payment", async () => {
+    if (!token) return render({ error: "log in first" });
+    const res = await fetch(`${PAYMENT}/receive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", authorization: `Bearer ${token}`, ...manualFailHeaders() },
+      body: JSON.stringify({}),
     });
     render(await res.json());
   });

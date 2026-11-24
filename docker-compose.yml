@@ -1,31 +1,18 @@
 services:
-  # Grafana + Tempo (traces) + Loki (logs) + Prometheus (metrics), all in one image.
+  # Grafana + Tempo (traces) + Loki (logs) + Prometheus (metrics) + a bundled
+  # OpenTelemetry Collector, all in one image. The browser and the Node services
+  # ship OTLP straight here; the image's collector already has CORS enabled and
+  # routes each signal to the right backend.
   lgtm:
     image: grafana/otel-lgtm:latest
     container_name: otel-lgtm
     ports:
       - "3000:3000" # Grafana UI
-    environment:
-      - ENABLE_LOGS_ALL=true
-    networks:
-      - otel
-
-  # Gateway collector. The browser and the Node services ship OTLP here.
-  # It has CORS enabled (so the browser can post directly) and forwards to lgtm.
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
-    container_name: otel-collector
-    command: ["--config=/etc/otelcol/config.yaml"]
-    volumes:
-      - ./collector/config.yaml:/etc/otelcol/config.yaml:ro
-    ports:
       - "4318:4318" # OTLP HTTP (browser + services)
       - "4317:4317" # OTLP gRPC
-    depends_on:
-      - lgtm
-    networks:
-      - otel
-
-networks:
-  otel:
-    driver: bridge
+    environment:
+      - ENABLE_LOGS_ALL=true
+    volumes:
+      # Provision the dashboard from a file so it survives container recreation.
+      - ./grafana/provisioning/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/otel-tryout.yaml:ro
+      - ./grafana/dashboard.json:/var/lib/grafana/dashboards/otel-tryout.json:ro
